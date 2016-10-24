@@ -61,8 +61,9 @@ void Note::delete_tmp_file(string tmp_file) {
 string Note::get_tmp_message() {
 
     // Create a tempfile path
-    boost::filesystem::path temp = boost::filesystem::unique_path();
-    string tmp_file = string("/tmp/notetaker-") + temp.native() + string(".txt");
+    boost::filesystem::path temp = boost::filesystem::unique_path(
+            "/tmp/notetaker_%%%%_%%%%.txt");
+    string tmp_file = temp.native();
 
     // Open and write to temporary file
     create_tmp_file(tmp_file);

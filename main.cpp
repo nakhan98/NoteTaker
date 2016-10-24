@@ -16,12 +16,8 @@ int main(int argc, char **argv) {
         if (!strcmp(argv[1], "-a") || !strcmp(argv[1], "--add")) {
             string title, message;
             cout << "Enter a title for your message: ";
-            //cin >> title;
             getline(cin, title);
-            //cin >> message;
-            //getline(cin, message);
             message = Note::get_tmp_message();
-            //Note n1(title, message);
             new Note(title, message);
 
         }
