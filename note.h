@@ -12,24 +12,24 @@ class Note {
         Note(std::string title, std::string message, bool new_message=true);
         ~Note();
 
-		//get_message
-		static std::string get_tmp_message();
-		//
-		// Create temporary file to save messages in
-		static void create_tmp_file(std::string tmp_file);
+        //get_message
+        static std::string get_tmp_message();
+        //
+        // Create temporary file to save messages in
+        static void create_tmp_file(std::string tmp_file);
 
-		//Get default editor
-		static std::string get_default_editor();
+        //Get default editor
+        static std::string get_default_editor();
 
-		// Open tmp_file in editor
-		static void open_file_in_editor(std::string editor,
-									    std::string file);
+        // Open tmp_file in editor
+        static void open_file_in_editor(std::string editor,
+                                        std::string file);
 
-		// Read tmp file
-		static std::string read_tmp_file(std::string tmp_file); 
+        // Read tmp file
+        static std::string read_tmp_file(std::string tmp_file); 
 
-		// Delete tmp file
-		static void delete_tmp_file(std::string tmp_file);
+        // Delete tmp file
+        static void delete_tmp_file(std::string tmp_file);
 
         // Setters
         std::string get_title();
