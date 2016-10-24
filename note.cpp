@@ -4,8 +4,11 @@
 #include <stdio.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <cstdlib>
+#include <stdlib.h>
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
+#include <boost/format.hpp>
 #include "note.h"
 
 using namespace std;
@@ -16,16 +19,67 @@ const string Note::NOTES_FILE = "./notes.json";
 // http://stackoverflow.com/a/20256365
 vector<Note *> Note::NoteList;
 
-string Note::get_tmp_message() {
-	boost::filesystem::path temp = boost::filesystem::unique_path();
-	string tmp_path = string("/tmp/note_taker_") + temp.native() + string(".txt");
-
-	// Create a temporary file and put message in it
-	ofstream outfile(tmp_path.c_str());
-	outfile << "my text here!" << std::endl;
+// Create a temporary file and put message in it
+void Note::create_tmp_file(string tmp_file) {
+	ofstream outfile(tmp_file.c_str());
+	outfile << "Enter your message here..." << endl;
 	outfile.close();
+}
 
-	return string("dummy");
+string Note::get_default_editor() {
+	string editor;
+	char * default_editor;
+
+	if ( (default_editor = getenv("EDITOR")) )
+		editor = string(default_editor);
+	else if ( (default_editor = getenv("VISUAL")) )
+		editor = string(default_editor);
+	else
+		editor = string("nano");
+		
+	return editor;
+}
+
+void Note::open_file_in_editor(string editor, string file) {
+	using boost::format;
+ 	format cmd = format("%1% %2%") % editor % file;
+	const char * command = cmd.str().c_str();
+	system(command);
+}
+
+string Note::read_tmp_file(string tmp_file) {
+	std::ifstream input(tmp_file.c_str());
+	std::stringstream sstr;
+	while(input >> sstr.rdbuf());
+	return sstr.str();
+}
+
+void Note::delete_tmp_file(string tmp_file) {
+	remove(tmp_file.c_str());
+}
+
+string Note::get_tmp_message() {
+
+	// Create a tempfile path
+	boost::filesystem::path temp = boost::filesystem::unique_path();
+	string tmp_file = string("/tmp/notetaker-") + temp.native() + string(".txt");
+
+	// Open and write to temporary file
+	create_tmp_file(tmp_file);
+
+	// Get default editor
+	string default_editor = get_default_editor();
+
+	// Run editor against tempfile
+	open_file_in_editor(default_editor, tmp_file);
+
+	// Read tmp file
+	string message = read_tmp_file(tmp_file);
+
+	// Delete tmp file
+	delete_tmp_file(tmp_file);
+
+	return message;
 	
 }
 

@@ -18,12 +18,11 @@ int main(int argc, char **argv) {
             cout << "Enter a title for your message: ";
             //cin >> title;
             getline(cin, title);
-            cout << "Enter your message: ";
             //cin >> message;
-            getline(cin, message);
+            //getline(cin, message);
+            message = Note::get_tmp_message();
             //Note n1(title, message);
             new Note(title, message);
-            Note::get_tmp_message();
 
         }
         else if (!strcmp(argv[1], "-l") || !strcmp(argv[1], "--list"))
