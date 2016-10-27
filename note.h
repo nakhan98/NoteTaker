@@ -9,7 +9,8 @@ const std::string NOTE_TAKER_HELP = "This is the notetaker help!";
 class Note {
     public:
         static std::vector<Note *> NoteList;
-        Note(std::string title, std::string message, bool new_message=true);
+        Note(std::string title, std::string message, int id=0,
+                bool new_message=true);
         ~Note();
 
         //get_message
@@ -17,6 +18,9 @@ class Note {
         //
         // Create temporary file to save messages in
         static void create_tmp_file(std::string tmp_file);
+
+        // get id for new message
+        int get_id();
 
         //Get default editor
         static std::string get_default_editor();
@@ -31,11 +35,14 @@ class Note {
         // Delete tmp file
         static void delete_tmp_file(std::string tmp_file);
 
+        //print all notes
+        static void print_all_notes();
+
         // Setters
         std::string get_title();
         std::string get_message();
 
-        void load_notes();
+        static void load_notes();
 
     private:
         // File to save notes in 
@@ -46,6 +53,7 @@ class Note {
         static void save_notes();
 
         // Message specific fields
+        int id;
         std::string title;
         std::string message;
         std::string date;

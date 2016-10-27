@@ -9,6 +9,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
 #include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
 #include "note.h"
 
 using namespace std;
@@ -75,7 +76,7 @@ string Note::get_tmp_message() {
     open_file_in_editor(default_editor, tmp_file);
 
     // Read tmp file
-    string message = read_tmp_file(tmp_file);
+    string message = boost::algorithm::trim_copy(read_tmp_file(tmp_file));
 
     // Delete tmp file
     delete_tmp_file(tmp_file);
@@ -85,9 +86,14 @@ string Note::get_tmp_message() {
 }
 
 //Note constructor
-Note::Note(string title_, string message_, bool new_message) {
+Note::Note(string title_, string message_, int id_, bool new_message) {
     if (new_message) 
         load_notes();
+
+    if (!id_)
+        id = get_id();
+    else
+        id = id_;
     title = title_;
     message = message_;
     NoteList.push_back(this);
@@ -99,6 +105,20 @@ Note::~Note() {
     cout << "Destroying note with title: " << title << endl;
 }
 
+//get an id of message
+int Note::get_id() {
+    int id;
+    int size_of_note_list = NoteList.size();
+    if (!size_of_note_list)
+        id = 1;
+    else {
+        id  = NoteList.back()->id;
+        id++;
+    }
+    return id;
+}
+
+
 void Note::load_notes() {
     if (boost::filesystem::exists(NOTES_FILE)) {
     //if (std::ifstream(NOTES_FILE.c_str())) {
@@ -107,9 +127,10 @@ void Note::load_notes() {
         boost::property_tree::read_json(NOTES_FILE, pt);
 
         BOOST_FOREACH( ptree::value_type& node, pt.get_child("Notes") ) {
+            int id = node.second.get<int>("id", -1);
             string title = node.second.get<string>("title", "");
             string message = node.second.get<string>("message", "");
-            Note * note = new Note(title, message, false);
+            new Note(title, message, id, false);
         }
     }
 }
@@ -131,6 +152,7 @@ void Note::save_notes() {
     for (vector<Note *>::iterator note_p = Note::NoteList.begin();
             note_p != Note::NoteList.end(); ++note_p) {
         ptree note;
+        note.put("id", (*note_p)->id);
         note.put("title", (*note_p)->title);
         note.put("message", (*note_p)->message);
         notes.push_back(make_pair("", note));
@@ -139,4 +161,19 @@ void Note::save_notes() {
     }
     pt.add_child("Notes", notes);
     write_json(NOTES_FILE, pt);
+}
+
+//print all notes
+void Note::print_all_notes() {
+    using boost::format;
+    load_notes();
+    cout << "Title\tMessage" << endl;
+    cout << "--------------" << endl;
+    for (vector<Note *>::iterator note_p = Note::NoteList.begin();
+            note_p != Note::NoteList.end(); ++note_p) {
+        // We want the first line of the message
+        // This may not be efficient - https://studiofreya.com/cpp/boost/a-few-boostformat-examples/
+        format title_message = format("%-40s%-60s") % (*note_p)->title % (*note_p)->message;
+        cout << title_message << endl;
+    }
 }
