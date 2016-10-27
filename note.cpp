@@ -10,15 +10,55 @@
 #include <boost/foreach.hpp>
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/program_options.hpp>
 #include "note.h"
 
 using namespace std;
+
+const float Note::VERSION = 0.1;
 
 // Define location to save file
 const string Note::NOTES_FILE = "./notes.json";
 
 // http://stackoverflow.com/a/20256365
 vector<Note *> Note::NoteList;
+
+// Arg parsing
+void Note::process_args(int argc, char **argv) {
+    /* See:
+     * http://www.boost.org/doc/libs/1_58_0/doc/html/program_options/tutorial.html
+     * https://chuckaknight.wordpress.com/2013/03/24/boost-command-line-argument-processing/
+     * https://www.nu42.com/2015/05/cpp-command-line-arguments-with-boost.html
+     */
+    namespace po = boost::program_options;
+    po::options_description desc("Allowed options");
+    desc.add_options()
+        ("help", "Show brief usage message")
+        ("version", "Show version number")
+        ("list,l", "List all notes")
+        ("add,a", "Add a note")
+    ;
+    po::variables_map args;
+    po::store(
+        po::parse_command_line(argc, argv, desc),
+        args
+    );
+    po::notify(args);    
+
+    if (args.count("help"))
+        cout << desc << endl;
+    else if (args.count("version"))
+        cout << "NoteTaker version " << VERSION << endl;
+    else if (args.count("list"))
+        print_all_notes();
+    else if (args.count("add")) {
+        string title, message;
+        cout << "Enter a title for your message: ";
+        getline(cin, title);
+        message = Note::get_tmp_message();
+        new Note(title, message);
+    }
+}
 
 // Create a temporary file and put message in it
 void Note::create_tmp_file(string tmp_file) {
@@ -167,13 +207,14 @@ void Note::save_notes() {
 void Note::print_all_notes() {
     using boost::format;
     load_notes();
-    cout << "Title\tMessage" << endl;
+    format title = format("%-5s%-60s") % "ID" % "Title";
+    cout << title << endl;
     cout << "--------------" << endl;
     for (vector<Note *>::iterator note_p = Note::NoteList.begin();
             note_p != Note::NoteList.end(); ++note_p) {
         // We want the first line of the message
         // This may not be efficient - https://studiofreya.com/cpp/boost/a-few-boostformat-examples/
-        format title_message = format("%-40s%-60s") % (*note_p)->title % (*note_p)->message;
+        format title_message = format("%-5s%-60s") % (*note_p)->id % (*note_p)->title;
         cout << title_message << endl;
     }
 }

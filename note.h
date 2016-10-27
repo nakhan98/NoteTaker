@@ -13,6 +13,9 @@ class Note {
                 bool new_message=true);
         ~Note();
 
+        // Arg parsing
+        static void process_args(int argc, char **argv);
+
         //get_message
         static std::string get_tmp_message();
         //
@@ -48,6 +51,8 @@ class Note {
         // File to save notes in 
         static const std::string NOTES_FILE;
 
+        // Version number
+        static const float VERSION;
 
         // save messages as JSON
         static void save_notes();
