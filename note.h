@@ -4,7 +4,6 @@
 #ifndef NOTE_H
 #define NOTE_H
 
-const std::string NOTE_TAKER_HELP = "This is the notetaker help!";
 
 class Note {
     public:
@@ -41,6 +40,18 @@ class Note {
         //print all notes
         static void print_all_notes();
 
+        //Get console width
+        static int get_console_width();
+
+        //Calculate title width
+        static int calc_title_width(int console_width);
+        
+        //create row format
+        static const char * create_note_row(int title_width);
+
+        //get current date
+        static std::string get_current_date();
+
         // Setters
         std::string get_title();
         std::string get_message();
@@ -48,6 +59,9 @@ class Note {
         static void load_notes();
 
     private:
+        // Generic info 
+        static const std::string NOTE_TAKER_INFO;
+
         // File to save notes in 
         static const std::string NOTES_FILE;
 

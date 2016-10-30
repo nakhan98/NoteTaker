@@ -2,8 +2,6 @@
 #include <ctime>
 #include <vector>
 #include <stdio.h>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
 #include <cstdlib>
 #include <stdlib.h>
 #include <boost/filesystem.hpp>
@@ -11,9 +9,22 @@
 #include <boost/format.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/lexical_cast.hpp>
+
+#include <sys/ioctl.h>
+#include <unistd.h>
+
 #include "note.h"
 
 using namespace std;
+
+const string Note::NOTE_TAKER_INFO = 
+    "NoteTaker\n"
+    "---------\n"
+    "Simple note taking app in C++/Boost\n";
 
 const float Note::VERSION = 0.1;
 
@@ -46,7 +57,7 @@ void Note::process_args(int argc, char **argv) {
     po::notify(args);    
 
     if (args.count("help"))
-        cout << desc << endl;
+        cout << NOTE_TAKER_INFO << endl << desc << endl;
     else if (args.count("version"))
         cout << "NoteTaker version " << VERSION << endl;
     else if (args.count("list"))
@@ -58,6 +69,10 @@ void Note::process_args(int argc, char **argv) {
         message = Note::get_tmp_message();
         new Note(title, message);
     }
+
+    // if no args, list notes
+    if (argc == 1)
+        print_all_notes();
 }
 
 // Create a temporary file and put message in it
@@ -136,6 +151,7 @@ Note::Note(string title_, string message_, int id_, bool new_message) {
         id = id_;
     title = title_;
     message = message_;
+    date = get_current_date();
     NoteList.push_back(this);
     if (new_message) 
         save_notes();
@@ -170,12 +186,13 @@ void Note::load_notes() {
             int id = node.second.get<int>("id", -1);
             string title = node.second.get<string>("title", "");
             string message = node.second.get<string>("message", "");
+            string date = node.second.get<string>("date", "");
             new Note(title, message, id, false);
         }
     }
 }
 
-// Setters
+// Getters
 string Note::get_title() {
     return title;
 }
@@ -195,6 +212,7 @@ void Note::save_notes() {
         note.put("id", (*note_p)->id);
         note.put("title", (*note_p)->title);
         note.put("message", (*note_p)->message);
+        note.put("date", (*note_p)->date);
         notes.push_back(make_pair("", note));
         cout << "*note_p is " << *note_p << endl;
         delete *note_p;
@@ -203,18 +221,63 @@ void Note::save_notes() {
     write_json(NOTES_FILE, pt);
 }
 
+//Get console width
+int Note::get_console_width() {
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    return w.ws_col;
+}
+
+// Calculate title width so that width of print_all_notes output dynamically
+// changes in response to console width
+int Note::calc_title_width(int console_width) {
+    int title_width;
+    if (console_width < 60)
+        title_width = console_width -25;
+    else
+        title_width = 60;
+
+    // cout << "Title width: " <<  title_width << endl;
+    return title_width;
+}
+
+// Create row format for print_all_notes
+const char * Note::create_note_row(int title_width) {
+    using boost::lexical_cast;
+    // "%-5s%-<title_width>s%-10s"
+    string row = string("%-5s%-") + lexical_cast<string>(title_width) + string("s") + string("%-10s");
+    return row.c_str();
+}
+
+// Get current datetime
+// http://stackoverflow.com/a/2493977
+string Note::get_current_date() {
+    namespace pt = boost::posix_time;
+    pt::ptime now = pt::second_clock::local_time();
+    // cout << boost::posix_time::to_simple_string(now) << endl;
+    return  boost::posix_time::to_simple_string(now);
+}
+
 //print all notes
 void Note::print_all_notes() {
     using boost::format;
+    get_current_date();
+    int title_width = calc_title_width(get_console_width());
     load_notes();
-    format title = format("%-5s%-60s") % "ID" % "Title";
-    cout << title << endl;
-    cout << "--------------" << endl;
-    for (vector<Note *>::iterator note_p = Note::NoteList.begin();
-            note_p != Note::NoteList.end(); ++note_p) {
-        // We want the first line of the message
-        // This may not be efficient - https://studiofreya.com/cpp/boost/a-few-boostformat-examples/
-        format title_message = format("%-5s%-60s") % (*note_p)->id % (*note_p)->title;
-        cout << title_message << endl;
+    if (!NoteList.size())
+        cout << "No notes saved!" << endl;
+    else {
+        format title = format(create_note_row(title_width)) % "ID" % "Title" % "Date";
+        cout << title << endl;
+        std::cout << std::string(title_width + 5 + 20, '-') << endl;
+        for (vector<Note *>::iterator note_p = Note::NoteList.begin();
+                note_p != Note::NoteList.end(); ++note_p) {
+            // We want the first line of the message
+            // This may not be efficient - https://studiofreya.com/cpp/boost/a-few-boostformat-examples/
+            //format title_message = format("%-5s%-60s") % (*note_p)->id % (*note_p)->title;
+            format row = format(create_note_row(title_width)) % (*note_p)->id % (*note_p)->title
+                % (*note_p)->date;
+            cout << row << endl;
+        }
     }
 }
