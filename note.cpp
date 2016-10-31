@@ -28,8 +28,12 @@ const string Note::NOTE_TAKER_INFO =
 
 const float Note::VERSION = 0.1;
 
-// Define location to save file
-const string Note::NOTES_FILE = "./notes.json";
+// Define location to save file, default in home dir
+//  For testing
+const string Note::NOTES_FILE = "notes.json";
+// This may better done in a separate function
+// const string Note::NOTES_FILE = string(getenv("HOME")) + string("/") +
+//    string(".notes.json");
 
 // http://stackoverflow.com/a/20256365
 vector<Note *> Note::NoteList;
@@ -141,7 +145,8 @@ string Note::get_tmp_message() {
 }
 
 //Note constructor
-Note::Note(string title_, string message_, int id_, bool new_message) {
+Note::Note(string title_, string message_, string date_, int id_, bool new_message) {
+    // This needs cleaning up, it is ugly!!!
     if (new_message) 
         load_notes();
 
@@ -151,7 +156,10 @@ Note::Note(string title_, string message_, int id_, bool new_message) {
         id = id_;
     title = title_;
     message = message_;
-    date = get_current_date();
+    if (new_message)
+        date = get_current_date();
+    else 
+        date = date_;
     NoteList.push_back(this);
     if (new_message) 
         save_notes();
@@ -187,7 +195,7 @@ void Note::load_notes() {
             string title = node.second.get<string>("title", "");
             string message = node.second.get<string>("message", "");
             string date = node.second.get<string>("date", "");
-            new Note(title, message, id, false);
+            new Note(title, message, date, id, false);
         }
     }
 }
@@ -261,7 +269,6 @@ string Note::get_current_date() {
 //print all notes
 void Note::print_all_notes() {
     using boost::format;
-    get_current_date();
     int title_width = calc_title_width(get_console_width());
     load_notes();
     if (!NoteList.size())

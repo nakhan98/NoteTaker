@@ -8,8 +8,8 @@
 class Note {
     public:
         static std::vector<Note *> NoteList;
-        Note(std::string title, std::string message, int id=0,
-                bool new_message=true);
+        Note(std::string title, std::string message, std::string date="",
+                int id=0, bool new_message=true);
         ~Note();
 
         // Arg parsing
