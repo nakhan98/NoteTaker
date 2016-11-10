@@ -13,7 +13,6 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/lexical_cast.hpp>
-
 #include <sys/ioctl.h>
 #include <unistd.h>
 
@@ -32,8 +31,8 @@ const float Note::VERSION = 0.1;
 //  For testing
 const string Note::NOTES_FILE = "notes.json";
 // This may better done in a separate function
-// const string Note::NOTES_FILE = string(getenv("HOME")) + string("/") +
-//    string(".notes.json");
+// const string Note::NOTES_FILE = string(getenv("HOME")) + "/" + 
+// ".notes.json";
 
 // http://stackoverflow.com/a/20256365
 vector<Note *> Note::NoteList;
@@ -95,7 +94,7 @@ string Note::get_default_editor() {
     else if ( (default_editor = getenv("VISUAL")) )
         editor = string(default_editor);
     else
-        editor = string("nano");
+        editor = "nano";
         
     return editor;
 }
@@ -253,7 +252,7 @@ int Note::calc_title_width(int console_width) {
 const char * Note::create_note_row(int title_width) {
     using boost::lexical_cast;
     // "%-5s%-<title_width>s%-10s"
-    string row = string("%-5s%-") + lexical_cast<string>(title_width) + string("s") + string("%-10s");
+    string row = "%-5s%-" + lexical_cast<string>(title_width) + "s" + "%-10s";
     return row.c_str();
 }
 
@@ -276,7 +275,7 @@ void Note::print_all_notes() {
     else {
         format title = format(create_note_row(title_width)) % "ID" % "Title" % "Date";
         cout << title << endl;
-        std::cout << std::string(title_width + 5 + 20, '-') << endl;
+        cout << string(title_width + 5 + 20, '-') << endl;
         for (vector<Note *>::iterator note_p = Note::NoteList.begin();
                 note_p != Note::NoteList.end(); ++note_p) {
             // We want the first line of the message
