@@ -8,7 +8,7 @@
 class Note {
     public:
         static std::vector<Note *> NoteList;
-        Note(std::string title, std::string message, std::string date="",
+        static Note* create_note(std::string title, std::string message, std::string date="",
                 int id=0, bool new_message=true);
         ~Note();
 
@@ -82,6 +82,10 @@ class Note {
 
         // save messages as JSON
         static void save_notes();
+
+        // Private consutructor so we can only allocate on heap
+        Note(std::string title, std::string message, std::string date,
+                int id, bool new_message);
 
         // Message specific fields
         int id;

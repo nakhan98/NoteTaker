@@ -74,7 +74,7 @@ void Note::process_args(int argc, char **argv) {
         cout << "Enter a title for your message: ";
         getline(cin, title);
         message = Note::get_tmp_message();
-        new Note(title, message);
+        create_note(title, message);
     }
     else if (args.count("edit")) {
         load_notes();
@@ -208,6 +208,12 @@ string Note::get_tmp_message(string note_message) {
     
 }
 
+// Method to create note (force allocation on heap)
+Note * Note::create_note(string title_, string message_, string date_, int id_,
+        bool new_message) {
+    return new Note(title_, message_, date_, id_, new_message);
+}
+
 //Note constructor
 Note::Note(string title_, string message_, string date_, int id_, bool new_message) {
     // This needs cleaning up, it is ugly!!!
@@ -266,7 +272,7 @@ void Note::load_notes() {
             string title = node.second.get<string>("title", "");
             string message = node.second.get<string>("message", "");
             string date = node.second.get<string>("date", "");
-            new Note(title, message, date, id, false);
+            create_note(title, message, date, id, false);
         }
     }
 }
