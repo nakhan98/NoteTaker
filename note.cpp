@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <cstdlib>
 #include <stdlib.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <stdexcept>
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
 #include <boost/format.hpp>
@@ -13,8 +16,6 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/lexical_cast.hpp>
-#include <sys/ioctl.h>
-#include <unistd.h>
 
 #include "note.h"
 
@@ -24,6 +25,8 @@ const string Note::NOTE_TAKER_INFO =
     "NoteTaker\n"
     "---------\n"
     "Simple note taking app in C++/Boost\n";
+
+const string Note::ADD_NOTE_MSG = "Enter your message here...";
 
 const float Note::VERSION = 0.1;
 
@@ -51,6 +54,7 @@ void Note::process_args(int argc, char **argv) {
         ("version", "Show version number")
         ("list,l", "List all notes")
         ("add,a", "Add a note")
+        ("edit,e", po::value< vector<int> >(), "Edit a note")
     ;
     po::variables_map args;
     po::store(
@@ -72,16 +76,73 @@ void Note::process_args(int argc, char **argv) {
         message = Note::get_tmp_message();
         new Note(title, message);
     }
+    else if (args.count("edit")) {
+        load_notes();
+        vector<int> input = args["edit"].as< vector<int> >();
+        edit_note(input[0]);
+    }
 
     // if no args, list notes
     if (argc == 1)
         print_all_notes();
 }
 
+// Edit a note
+void Note::edit_note(int id) {
+    using boost::format;
+    //format cmd = format("%1% %2%") % editor % file;
+    // Try-catch errors - http://stackoverflow.com/a/26171850/7142682
+    Note * note; 
+    try 
+    {
+        note = get_note(id);
+    }
+    catch (runtime_error err)
+    {
+        cout << "Error: " << err.what() << endl;
+        destroy_all_notes();
+        exit(1);
+    }
+    // Old message details
+    string old_title = note->title;
+    string old_msg = note->message;
+
+    // Get new message details
+    string new_title, new_msg;
+    format get_title_msg = format("Enter a title for your message[%s]: ") % old_title;
+    cout << get_title_msg;
+    getline(cin, new_title);
+    //boost::algorithm::trim(new_title); To-do: check that title is not whitespace
+    if (new_title == "")
+        new_title = old_title;
+
+    new_msg = get_tmp_message(old_msg);
+
+    // Save note
+    note->title = new_title;
+    note->message = new_msg;
+    save_notes();
+}
+
+// Retrieve a Note
+// Throw runtime error if note is not found
+Note*  Note::get_note(int id) {
+    for (vector<Note *>::iterator note_p = Note::NoteList.begin();
+            note_p != Note::NoteList.end(); ++note_p) {
+        if ((*note_p)->id == id) {
+            cout << "Found note!" << endl;
+            return *note_p;
+        }
+    }
+    string error_message = "Note not found with id - " + boost::lexical_cast<string>(id);
+    throw std::runtime_error(error_message);
+}
+
+
 // Create a temporary file and put message in it
-void Note::create_tmp_file(string tmp_file) {
+void Note::create_tmp_file(string tmp_file, string message) {
     ofstream outfile(tmp_file.c_str());
-    outfile << "Enter your message here..." << endl;
+    outfile << message << endl;
     outfile.close();
 }
 
@@ -117,7 +178,11 @@ void Note::delete_tmp_file(string tmp_file) {
     remove(tmp_file.c_str());
 }
 
-string Note::get_tmp_message() {
+string Note::get_tmp_message(string note_message) {
+
+    // Check of a message was passed
+    if (note_message == "")
+        note_message = ADD_NOTE_MSG; 
 
     // Create a tempfile path
     boost::filesystem::path temp = boost::filesystem::unique_path(
@@ -125,7 +190,7 @@ string Note::get_tmp_message() {
     string tmp_file = temp.native();
 
     // Open and write to temporary file
-    create_tmp_file(tmp_file);
+    create_tmp_file(tmp_file, note_message);
 
     // Get default editor
     string default_editor = get_default_editor();
@@ -166,6 +231,13 @@ Note::Note(string title_, string message_, string date_, int id_, bool new_messa
 
 Note::~Note() {
     cout << "Destroying note with title: " << title << endl;
+}
+
+// Delete notes in memory
+void Note::destroy_all_notes() {
+    for (vector<Note *>::iterator note_p = Note::NoteList.begin();
+            note_p != Note::NoteList.end(); ++note_p)
+        delete *note_p;
 }
 
 //get an id of message
@@ -222,10 +294,11 @@ void Note::save_notes() {
         note.put("date", (*note_p)->date);
         notes.push_back(make_pair("", note));
         cout << "*note_p is " << *note_p << endl;
-        delete *note_p;
+        //delete *note_p;
     }
     pt.add_child("Notes", notes);
     write_json(NOTES_FILE, pt);
+    destroy_all_notes();
 }
 
 //Get console width

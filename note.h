@@ -15,14 +15,23 @@ class Note {
         // Arg parsing
         static void process_args(int argc, char **argv);
 
+        // retrieve Note
+        static Note* get_note(int id);
+
+        // edit note
+        static void edit_note(int id);
+
         //get_message
-        static std::string get_tmp_message();
+        static std::string get_tmp_message(std::string message="");
         //
         // Create temporary file to save messages in
-        static void create_tmp_file(std::string tmp_file);
+        static void create_tmp_file(std::string tmp_file, std::string message);
 
         // get id for new message
         int get_id();
+
+        // destroy all notes in memory
+        static void destroy_all_notes();
 
         //Get default editor
         static std::string get_default_editor();
@@ -67,6 +76,9 @@ class Note {
 
         // Version number
         static const float VERSION;
+
+        // Default message in temp file when adding note
+        static const std::string ADD_NOTE_MSG;
 
         // save messages as JSON
         static void save_notes();
