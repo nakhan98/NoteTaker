@@ -416,4 +416,5 @@ void Note::print_all_notes() {
             cout << row << endl;
         }
     }
+    destroy_all_notes();
 }
