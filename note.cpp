@@ -16,6 +16,9 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/core.hpp>
 
 #include "note.h"
 
@@ -40,6 +43,24 @@ const string Note::NOTES_FILE = "notes.json";
 // http://stackoverflow.com/a/20256365
 vector<Note *> Note::NoteList;
 
+// Set log level to info
+void Note::disable_debugging() {
+    namespace logging = boost::log;
+    logging::core::get()->set_filter
+    (
+        logging::trivial::severity >= logging::trivial::info
+    );
+}
+
+// Set log level to debug
+void Note::enable_debugging() {
+    namespace logging = boost::log;
+    logging::core::get()->set_filter
+    (
+        logging::trivial::severity >= logging::trivial::debug
+    );
+}
+
 // Arg parsing
 void Note::process_args(int argc, char **argv) {
     /* See:
@@ -55,6 +76,8 @@ void Note::process_args(int argc, char **argv) {
         ("list,l", "List all notes")
         ("add,a", "Add a note")
         ("edit,e", po::value< vector<int> >(), "Edit a note")
+        ("show,s", po::value< vector<int> >(), "Show a note")
+        ("debug", "Turn debugging on")
     ;
     po::variables_map args;
     po::store(
@@ -62,6 +85,12 @@ void Note::process_args(int argc, char **argv) {
         args
     );
     po::notify(args);    
+
+    // Set log level
+    if (args.count("debug"))
+        enable_debugging();
+    else
+        disable_debugging();
 
     if (args.count("help"))
         cout << NOTE_TAKER_INFO << endl << desc << endl;
@@ -81,16 +110,38 @@ void Note::process_args(int argc, char **argv) {
         vector<int> input = args["edit"].as< vector<int> >();
         edit_note(input[0]);
     }
+    else if (args.count("show")) {
+        load_notes();
+        vector<int> input = args["show"].as< vector<int> >();
+        show_note(input[0]);
+    }
 
     // if no args, list notes
     if (argc == 1)
         print_all_notes();
 }
 
+void Note::show_note(int id) {
+    using boost::format;
+    Note * note;
+    try
+    {
+        note = get_note(id);
+    }
+    catch (runtime_error err)
+    {
+        cout << "Error: " << err.what() << endl;
+        destroy_all_notes();
+        exit(1);
+    }
+    cout << format("Title: %s\nBody: %s") % note->title % note->message
+        << endl;
+    destroy_all_notes();
+}
+
 // Edit a note
 void Note::edit_note(int id) {
     using boost::format;
-    //format cmd = format("%1% %2%") % editor % file;
     // Try-catch errors - http://stackoverflow.com/a/26171850/7142682
     Note * note; 
     try 
@@ -130,7 +181,7 @@ Note*  Note::get_note(int id) {
     for (vector<Note *>::iterator note_p = Note::NoteList.begin();
             note_p != Note::NoteList.end(); ++note_p) {
         if ((*note_p)->id == id) {
-            cout << "Found note!" << endl;
+            BOOST_LOG_TRIVIAL(debug) << "Found note with id: " << id;
             return *note_p;
         }
     }
@@ -236,7 +287,7 @@ Note::Note(string title_, string message_, string date_, int id_, bool new_messa
 }
 
 Note::~Note() {
-    cout << "Destroying note with title: " << title << endl;
+    BOOST_LOG_TRIVIAL(debug) << "Destroying note with title: " << title;
 }
 
 // Delete notes in memory

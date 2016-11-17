@@ -12,6 +12,12 @@ class Note {
                 int id=0, bool new_message=true);
         ~Note();
 
+        // Set log level to debug
+        static void enable_debugging();
+
+        //Set log level to info
+        static void disable_debugging();
+
         // Arg parsing
         static void process_args(int argc, char **argv);
 
@@ -21,9 +27,12 @@ class Note {
         // edit note
         static void edit_note(int id);
 
+        // show note
+        static void show_note(int id);
+
         //get_message
         static std::string get_tmp_message(std::string message="");
-        //
+
         // Create temporary file to save messages in
         static void create_tmp_file(std::string tmp_file, std::string message);
 
