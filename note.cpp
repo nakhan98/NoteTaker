@@ -119,6 +119,11 @@ void Note::process_args(int argc, char **argv) {
     // if no args, list notes
     if (argc == 1)
         print_all_notes();
+    else if (argc == 2 && args.count("debug")) {
+        enable_debugging();
+        print_all_notes();
+    }
+
 }
 
 void Note::show_note(int id) {
