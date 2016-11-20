@@ -35,7 +35,7 @@ const float Note::VERSION = 0.1;
 
 // Define location to save file, default in home dir
 //  For testing
-const string Note::NOTES_FILE = "notes.json";
+string Note::NOTES_FILE = "notes.json";
 // This may better done in a separate function
 // const string Note::NOTES_FILE = string(getenv("HOME")) + "/" + 
 // ".notes.json";
@@ -77,6 +77,7 @@ void Note::process_args(int argc, char **argv) {
         ("add,a", "Add a note")
         ("edit,e", po::value< vector<int> >(), "Edit a note")
         ("show,s", po::value< vector<int> >(), "Show a note")
+        ("profile,p", po::value< vector<string> >(), "Specify a profile")
         ("debug", "Turn debugging on")
     ;
     po::variables_map args;
@@ -91,6 +92,15 @@ void Note::process_args(int argc, char **argv) {
         enable_debugging();
     else
         disable_debugging();
+
+    // Set profile path
+    if (args.count("profile")) {
+        vector<string> input = args["profile"].as< vector<string> >();
+        BOOST_LOG_TRIVIAL(debug) << "process_args: profile path has been " <<
+            "specified: " << input[0];
+        load_profile(input[0]);
+
+    }
 
     if (args.count("help"))
         cout << NOTE_TAKER_INFO << endl << desc << endl;
@@ -116,14 +126,21 @@ void Note::process_args(int argc, char **argv) {
         show_note(input[0]);
     }
 
-    // if no args, list notes
-    if (argc == 1)
-        print_all_notes();
-    else if (argc == 2 && args.count("debug")) {
-        enable_debugging();
+    // if no relevant args, list notes
+    if (!(args.count("add") || args.count("edit") || args.count("show") ||
+                args.count("list") || args.count("help") ||
+                args.count("version"))) {
+        BOOST_LOG_TRIVIAL(debug) << "process_args: listing notes";
         print_all_notes();
     }
+}
 
+void Note::load_profile(string path) {
+    if (path != "") {
+        BOOST_LOG_TRIVIAL(debug) << "load_profile: Changing profile path: "
+            << path;
+        NOTES_FILE = path;
+    }
 }
 
 void Note::show_note(int id) {
@@ -355,7 +372,7 @@ void Note::save_notes() {
         note.put("message", (*note_p)->message);
         note.put("date", (*note_p)->date);
         notes.push_back(make_pair("", note));
-        cout << "*note_p is " << *note_p << endl;
+        BOOST_LOG_TRIVIAL(debug) << "*note_p is " << *note_p;
         //delete *note_p;
     }
     pt.add_child("Notes", notes);

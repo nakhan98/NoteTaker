@@ -18,6 +18,9 @@ class Note {
         //Set log level to info
         static void disable_debugging();
 
+        // Load profile
+        static void load_profile(std::string path="");
+
         // Arg parsing
         static void process_args(int argc, char **argv);
 
@@ -81,7 +84,7 @@ class Note {
         static const std::string NOTE_TAKER_INFO;
 
         // File to save notes in 
-        static const std::string NOTES_FILE;
+        static std::string NOTES_FILE;
 
         // Version number
         static const float VERSION;
