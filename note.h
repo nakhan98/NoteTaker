@@ -21,6 +21,9 @@ class Note {
         // Load profile
         static void load_profile(std::string path="");
 
+        // Encrypt profile
+        static void encrypt_profile();
+
         // Arg parsing
         static void process_args(int argc, char **argv);
 
@@ -79,18 +82,40 @@ class Note {
 
         static void load_notes();
 
+        //Encryption-related functions
+        static bool check_if_profile_encrypted();
+        static std::string decrypt_profile();
+
+        /**
+         * Run cmd and return exit code and stdout output via reference
+         * See:
+         * https://www.jeremymorgan.com/tutorials/c-programming/how-to-capture-the-output-of-a-linux-command-in-c/
+         */
+        static void run_cmd(std::string cmd, int& exit_code, std::string&
+                stdout_);
+
+
     private:
         // Generic info 
         static const std::string NOTE_TAKER_INFO;
 
         // File to save notes in 
-        static std::string NOTES_FILE;
+        static std::string NOTES_FILE; // this is not a constant, should be lower case
 
         // Version number
         static const float VERSION;
 
         // Default message in temp file when adding note
         static const std::string ADD_NOTE_MSG;
+
+        // GPG decryption command
+        static const std::string GPG_DECRYPTION_CMD;
+
+        // Field signifies whether profile is encrypted
+        static bool s_profile_encrypted;
+
+        // GPG header
+        static const std::string GPG_HEADER;
 
         // save messages as JSON
         static void save_notes();

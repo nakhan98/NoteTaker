@@ -33,6 +33,12 @@ const string Note::ADD_NOTE_MSG = "Enter your message here...";
 
 const float Note::VERSION = 0.1;
 
+const string Note::GPG_HEADER = "-----BEGIN PGP MESSAGE-----";
+
+const string Note::GPG_DECRYPTION_CMD = "gpg -o - ";
+
+bool Note::s_profile_encrypted = false;
+
 // Define location to save file, default in home dir
 //  For testing
 string Note::NOTES_FILE = "notes.json";
@@ -78,6 +84,7 @@ void Note::process_args(int argc, char **argv) {
         ("edit,e", po::value< vector<int> >(), "Edit a note")
         ("show,s", po::value< vector<int> >(), "Show a note")
         ("profile,p", po::value< vector<string> >(), "Specify a profile")
+        ("encrypt,e", "Encrypt profile")
         ("debug", "Turn debugging on")
     ;
     po::variables_map args;
@@ -100,6 +107,10 @@ void Note::process_args(int argc, char **argv) {
             "specified: " << input[0];
         load_profile(input[0]);
 
+    }
+    else {
+        BOOST_LOG_TRIVIAL(debug) << "process_args: using default profile - " <<
+            NOTES_FILE;
     }
 
     if (args.count("help"))
@@ -125,6 +136,9 @@ void Note::process_args(int argc, char **argv) {
         vector<int> input = args["show"].as< vector<int> >();
         show_note(input[0]);
     }
+    else if (args.count("encrypt"))
+        BOOST_LOG_TRIVIAL(debug) << "process_args: encrypt profile";
+        encrypt_profile();
 
     // if no relevant args, list notes
     if (!(args.count("add") || args.count("edit") || args.count("show") ||
@@ -133,6 +147,9 @@ void Note::process_args(int argc, char **argv) {
         BOOST_LOG_TRIVIAL(debug) << "process_args: listing notes";
         print_all_notes();
     }
+}
+
+void Note::encrypt_profile() {
 }
 
 void Note::load_profile(string path) {
@@ -309,7 +326,7 @@ Note::Note(string title_, string message_, string date_, int id_, bool new_messa
 }
 
 Note::~Note() {
-    BOOST_LOG_TRIVIAL(debug) << "Destroying note with title: " << title;
+    BOOST_LOG_TRIVIAL(debug) << "~Note: Destroying note with title - " << title;
 }
 
 // Delete notes in memory
@@ -332,13 +349,80 @@ int Note::get_id() {
     return id;
 }
 
+bool Note::check_if_profile_encrypted() {
+    ifstream infile(NOTES_FILE.c_str());
+    bool retval = false;
+    if (infile.good()) {
+        string first_line;
+        getline(infile, first_line);
+        BOOST_LOG_TRIVIAL(debug) << "check_if_profile_encrypted: first line of"
+           << " profile - " << first_line;
+        if (first_line == GPG_HEADER) {
+            BOOST_LOG_TRIVIAL(debug) << "check_if_profile_encrypted: profile "
+                "is encrypted";
+            retval = true;
+            s_profile_encrypted = true;
+        }
+    }
+    return retval;
+}
+
+// Attempt to decrypt profile (throw runtime error if return code of gpg command is not
+// 0)
+string Note::decrypt_profile() {
+    string command = GPG_DECRYPTION_CMD + NOTES_FILE;
+    int exit_code;
+    string output;
+    run_cmd(command, exit_code, output);
+    BOOST_LOG_TRIVIAL(debug) << "decrypt_profile: Attempting to decrypt profile - " <<
+        NOTES_FILE;
+
+    if (exit_code != 0) {
+        string error_message = "decrypt_profile failes as cmd returned "
+            "non-zero value: " + boost::lexical_cast<string>(exit_code);
+        throw std::runtime_error(error_message);
+    }
+
+    BOOST_LOG_TRIVIAL(debug) << "decrypt_profile: decryption was successful!";
+    BOOST_LOG_TRIVIAL(debug) << "decrypt_profile: decrypted_profile is: " <<
+        output;
+    return output;
+}
+
+void Note::run_cmd(string cmd, int& exit_code, string& output) {
+    //string data;
+    FILE * stream;
+    const int max_buffer = 256;
+    char buffer[max_buffer];
+    exit_code = 1;
+    //cmd.append(" 2>&1"); Don't need stderr redirection for now
+
+    BOOST_LOG_TRIVIAL(debug) << "run_cmd: preparing to run the following " <<
+        "command - " << cmd;
+
+    stream = popen(cmd.c_str(), "r");
+    if (stream) {
+        while (!feof(stream))
+            if (fgets(buffer, max_buffer, stream) != NULL)
+                output.append(buffer);
+        exit_code = pclose(stream);
+    }
+}
 
 void Note::load_notes() {
     if (boost::filesystem::exists(NOTES_FILE)) {
     //if (std::ifstream(NOTES_FILE.c_str())) {
         using boost::property_tree::ptree;
         ptree pt;
-        boost::property_tree::read_json(NOTES_FILE, pt);
+        if (check_if_profile_encrypted()) {
+            // See this - http://stackoverflow.com/a/21537818
+            string decrypted_profile = decrypt_profile();
+            stringstream ss;
+            ss << decrypted_profile; 
+            boost::property_tree::read_json(ss, pt);
+        }
+        else 
+            boost::property_tree::read_json(NOTES_FILE, pt);
 
         BOOST_FOREACH( ptree::value_type& node, pt.get_child("Notes") ) {
             int id = node.second.get<int>("id", -1);
