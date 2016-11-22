@@ -85,6 +85,13 @@ class Note {
         //Encryption-related functions
         static bool check_if_profile_encrypted();
         static std::string decrypt_profile();
+        static void write_encrypted_profile(std::string profile);
+
+        // Get $UID
+        static std::string get_uid();
+
+        // Create app temp directory
+        static void create_app_tmp_dir(std::string path); 
 
         /**
          * Run cmd and return exit code and stdout output via reference
@@ -110,6 +117,15 @@ class Note {
 
         // GPG decryption command
         static const std::string GPG_DECRYPTION_CMD;
+
+        // GPG encryption command
+        static const std::string GPG_ENCRYPTION_CMD;
+
+        // Command to get $UID
+        static const std::string GET_UID; 
+      
+        // Command to check if /run/user/$(id -u) is present
+        static const std::string CHECK_USER_TMPFS; 
 
         // Field signifies whether profile is encrypted
         static bool s_profile_encrypted;

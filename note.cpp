@@ -35,14 +35,22 @@ const float Note::VERSION = 0.1;
 
 const string Note::GPG_HEADER = "-----BEGIN PGP MESSAGE-----";
 
-const string Note::GPG_DECRYPTION_CMD = "gpg -o - ";
+const string Note::GPG_DECRYPTION_CMD = "gpg --output - ";
+
+const string Note::GPG_ENCRYPTION_CMD = "gpg --output %s --yes --symmetric "
+    "--armour %s";
+
+const std::string Note::CHECK_USER_TMPFS = "ls -l /run/user/$(id -u)";
+
+const std::string Note::GET_UID = "id -u";
+
+
 
 bool Note::s_profile_encrypted = false;
 
 // Define location to save file, default in home dir
 //  For testing
 string Note::NOTES_FILE = "notes.json";
-// This may better done in a separate function
 // const string Note::NOTES_FILE = string(getenv("HOME")) + "/" + 
 // ".notes.json";
 
@@ -265,6 +273,7 @@ string Note::read_tmp_file(string tmp_file) {
 }
 
 void Note::delete_tmp_file(string tmp_file) {
+    BOOST_LOG_TRIVIAL(debug) << "delete_tmp_file: Deleting: " << tmp_file;
     remove(tmp_file.c_str());
 }
 
@@ -378,7 +387,7 @@ string Note::decrypt_profile() {
         NOTES_FILE;
 
     if (exit_code != 0) {
-        string error_message = "decrypt_profile failes as cmd returned "
+        string error_message = "decrypt_profile failed as cmd returned "
             "non-zero value: " + boost::lexical_cast<string>(exit_code);
         throw std::runtime_error(error_message);
     }
@@ -456,13 +465,95 @@ void Note::save_notes() {
         note.put("message", (*note_p)->message);
         note.put("date", (*note_p)->date);
         notes.push_back(make_pair("", note));
-        BOOST_LOG_TRIVIAL(debug) << "*note_p is " << *note_p;
+        BOOST_LOG_TRIVIAL(debug) << "save_notes: *note_p is " << *note_p;
         //delete *note_p;
     }
     pt.add_child("Notes", notes);
-    write_json(NOTES_FILE, pt);
+
+    // Check if encryption is enabled
+    if (s_profile_encrypted) {
+        BOOST_LOG_TRIVIAL(debug) << "save_notes: encryption is set, saving "
+            "encrypted profile to " << NOTES_FILE;
+        stringstream ss;
+        write_json(ss, pt);
+        write_encrypted_profile(ss.str());
+    }
+    else
+        write_json(NOTES_FILE, pt);
     destroy_all_notes();
 }
+
+/* Encrypts profile
+ * Requires systemd and the /run/user/$(id -u) tmpfs to be present 
+ *
+ * Doing it this way as don't want to write decrypted profile to disk
+ * Todo 1: If no /run/user/$(id -u) fallback to using /tmp/
+ * Todo 2: maybe use GPGME library
+ */
+void Note::write_encrypted_profile(string profile) {
+    using boost::format;
+    int exit_code;
+    string output;
+    run_cmd(CHECK_USER_TMPFS, exit_code, output);
+    if (exit_code != 0) {
+        // throw for now (see todo)
+        throw std::runtime_error("Could not find user tmp directory in /run/user");
+    }
+
+    // Get $UID
+    string uid = get_uid();
+
+    // Path for tempfile 
+    // Todo: This should be in a function
+    // Todo: Also the temp file should be in an app specific directory i.e.
+    // /run/user/1000/NoteTaker/blablabla
+    create_app_tmp_dir("/run/user/" + get_uid());
+    string tmp_file = "/run/user/" + uid + "/NoteTaker/notetaker_%%%%_%%%%.profile";
+    boost::filesystem::path temp = boost::filesystem::unique_path(tmp_file);
+    tmp_file = temp.native();
+
+    //Create temp file
+    create_tmp_file(tmp_file, profile);
+
+    // construct cmd to encrypt profile 
+    string gpg_encrypt_cmd = boost::str(format(GPG_ENCRYPTION_CMD) %
+            NOTES_FILE % tmp_file);
+    
+    cout << "Please enter password to re-encrypt profile" << endl;
+    run_cmd(gpg_encrypt_cmd, exit_code, output);
+
+    if (exit_code != 0) {
+        // throw for now (see todo)
+        throw std::runtime_error("Error while trying to encrypt profile");
+    }
+
+    delete_tmp_file(tmp_file);
+}
+
+// Get $UID
+// Note: class field instead?
+string Note::get_uid() {
+    string uid;
+    int exit_code;
+    run_cmd(GET_UID, exit_code, uid);
+    boost::algorithm::trim(uid);
+    return uid;
+}
+
+void Note::create_app_tmp_dir(string tmp_path) {
+    string temp_dir = tmp_path + "/NoteTaker";
+    boost::filesystem::path path(temp_dir);
+    if (boost::filesystem::create_directory(path)) {
+        BOOST_LOG_TRIVIAL(debug) << "create_user_tmpfs_dir: Created temporary "
+            << "directory for app: " << temp_dir;
+    }
+    else {
+        BOOST_LOG_TRIVIAL(debug) <<
+            "create_user_tmpfs_dir: Temporary directory already exists: "  <<
+            temp_dir;
+    }
+}
+
 
 //Get console width
 int Note::get_console_width() {
