@@ -7,6 +7,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <stdexcept>
+#include <termios.h>
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
 #include <boost/format.hpp>
@@ -44,9 +45,11 @@ const std::string Note::CHECK_USER_TMPFS = "ls -l /run/user/$(id -u)";
 
 const std::string Note::GET_UID = "id -u";
 
-
+const std::string Note::PASSWORDS_FILE = ".x768bbbgi";
 
 bool Note::s_profile_encrypted = false;
+
+std::string Note::s_temp_dir;
 
 // Define location to save file, default in home dir
 //  For testing
@@ -108,6 +111,9 @@ void Note::process_args(int argc, char **argv) {
     else
         disable_debugging();
 
+    // Create and specify temp dir
+    create_temp_dir();
+
     // Set profile path
     if (args.count("profile")) {
         vector<string> input = args["profile"].as< vector<string> >();
@@ -144,20 +150,86 @@ void Note::process_args(int argc, char **argv) {
         vector<int> input = args["show"].as< vector<int> >();
         show_note(input[0]);
     }
-    else if (args.count("encrypt"))
+
+    if (args.count("encrypt")) {
         BOOST_LOG_TRIVIAL(debug) << "process_args: encrypt profile";
         encrypt_profile();
+    }
 
     // if no relevant args, list notes
     if (!(args.count("add") || args.count("edit") || args.count("show") ||
                 args.count("list") || args.count("help") ||
-                args.count("version"))) {
+                args.count("version") || args.count("encrypt"))) {
         BOOST_LOG_TRIVIAL(debug) << "process_args: listing notes";
         print_all_notes();
     }
 }
 
+// Create temp dir and set s_temp_dir
+void Note::create_temp_dir() {
+    using boost::format;
+    int exit_code;
+    string output;
+    string tmp_dir;
+    run_cmd(CHECK_USER_TMPFS, exit_code, output);
+
+    if (exit_code != 0) {
+        tmp_dir = "/tmp";
+        create_app_tmp_dir(tmp_dir);
+    }
+    else {
+        // Get $UID
+        string uid = get_uid();
+
+        // Path for tempfile 
+        tmp_dir = "/run/user/" + uid;
+        create_app_tmp_dir(tmp_dir);
+    }
+    BOOST_LOG_TRIVIAL(debug) << "create_temp_dir: setting s_temp_dir to " <<
+        tmp_dir;
+    s_temp_dir = tmp_dir;
+}
+
+// Ask for password
+// Taken from http://stackoverflow.com/a/6899073/7142682
+template <class T>
+string Note::get_gpg_pass(T prompt) {
+    termios oldt;
+    tcgetattr(STDIN_FILENO, &oldt);
+    termios newt = oldt;
+    cout << prompt;
+    newt.c_lflag &= ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
+    string password;
+    getline(cin, password);
+
+    BOOST_LOG_TRIVIAL(debug) << "get_gpg_pass: entered password is: " <<
+        password;
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return password;
+}
+
+// Trying to learn templates - ignore
+template<>
+void Note::learn_templates<int>(int x) {
+    // Testing templates
+    cout << "You specified: " << x << endl;
+}
+
+// Trying to learn templates - ignore
+template<>
+void Note::learn_templates<const char *>(const char* x) {
+    // Testing templates
+    cout << "You specified: " << x << endl;
+}
+
 void Note::encrypt_profile() {
+    // Todo: check if encrypted
+    string pass = get_gpg_pass("Enter password: ");
+    s_profile_encrypted = true;
+    load_notes();
+    save_notes();
 }
 
 void Note::load_profile(string path) {
@@ -340,6 +412,7 @@ Note::~Note() {
 
 // Delete notes in memory
 void Note::destroy_all_notes() {
+    BOOST_LOG_TRIVIAL(debug) << "destroy_all_notes: destroying all notes";
     for (vector<Note *>::iterator note_p = Note::NoteList.begin();
             note_p != Note::NoteList.end(); ++note_p)
         delete *note_p;
@@ -419,6 +492,11 @@ void Note::run_cmd(string cmd, int& exit_code, string& output) {
 }
 
 void Note::load_notes() {
+    // Destroy all notes before proceeding
+    BOOST_LOG_TRIVIAL(debug) << "load_notes: destroy any existing notes loaded"
+        << "before loading notes";
+    destroy_all_notes();
+
     if (boost::filesystem::exists(NOTES_FILE)) {
     //if (std::ifstream(NOTES_FILE.c_str())) {
         using boost::property_tree::ptree;
@@ -494,21 +572,10 @@ void Note::write_encrypted_profile(string profile) {
     using boost::format;
     int exit_code;
     string output;
-    run_cmd(CHECK_USER_TMPFS, exit_code, output);
-    if (exit_code != 0) {
-        // throw for now (see todo)
-        throw std::runtime_error("Could not find user tmp directory in /run/user");
-    }
+    string tmp_file;
+    tmp_file = s_temp_dir + "/NoteTaker/notetaker_%%%%_%%%%.profile";
 
-    // Get $UID
-    string uid = get_uid();
-
-    // Path for tempfile 
-    // Todo: This should be in a function
-    // Todo: Also the temp file should be in an app specific directory i.e.
-    // /run/user/1000/NoteTaker/blablabla
-    create_app_tmp_dir("/run/user/" + get_uid());
-    string tmp_file = "/run/user/" + uid + "/NoteTaker/notetaker_%%%%_%%%%.profile";
+    // create tmp file path
     boost::filesystem::path temp = boost::filesystem::unique_path(tmp_file);
     tmp_file = temp.native();
 
@@ -527,7 +594,7 @@ void Note::write_encrypted_profile(string profile) {
         throw std::runtime_error("Error while trying to encrypt profile");
     }
 
-    delete_tmp_file(tmp_file);
+    //delete_tmp_file(tmp_file);
 }
 
 // Get $UID

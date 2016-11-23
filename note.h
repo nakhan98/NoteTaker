@@ -86,6 +86,10 @@ class Note {
         static bool check_if_profile_encrypted();
         static std::string decrypt_profile();
         static void write_encrypted_profile(std::string profile);
+        template <class T> static std::string get_gpg_pass(T prompt);
+
+        // Learning templates - ignore
+        template<class Tee> static void learn_templates(Tee y); 
 
         // Get $UID
         static std::string get_uid();
@@ -100,6 +104,9 @@ class Note {
          */
         static void run_cmd(std::string cmd, int& exit_code, std::string&
                 stdout_);
+
+        // Create temp dir and set s_temp_dir
+        static void create_temp_dir();
 
 
     private:
@@ -127,8 +134,14 @@ class Note {
         // Command to check if /run/user/$(id -u) is present
         static const std::string CHECK_USER_TMPFS; 
 
+        // File to store passwords
+        static const std::string PASSWORDS_FILE;
+
         // Field signifies whether profile is encrypted
         static bool s_profile_encrypted;
+
+        // Temporary directory
+        static std::string s_temp_dir;
 
         // GPG header
         static const std::string GPG_HEADER;
