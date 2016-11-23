@@ -595,7 +595,7 @@ void Note::write_encrypted_profile(string profile) {
         throw std::runtime_error("Error while trying to encrypt profile");
     }
 
-    //delete_tmp_file(tmp_file);
+    delete_tmp_file(tmp_file);
 }
 
 // Get $UID
