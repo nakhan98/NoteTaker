@@ -446,6 +446,7 @@ bool Note::check_if_profile_encrypted() {
             s_profile_encrypted = true;
         }
     }
+    infile.close();
     return retval;
 }
 
