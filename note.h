@@ -86,6 +86,7 @@ class Note {
         static bool check_if_profile_encrypted();
         static std::string decrypt_profile();
         static void write_encrypted_profile(std::string profile);
+        static void get_and_save_passwd_to_file();
         template <class T> static std::string get_gpg_pass(T prompt);
 
         // Learning templates - ignore
@@ -135,7 +136,7 @@ class Note {
         static const std::string CHECK_USER_TMPFS; 
 
         // File to store passwords
-        static const std::string PASSWORDS_FILE;
+        static const std::string PASSWORD_FILE;
 
         // Field signifies whether profile is encrypted
         static bool s_profile_encrypted;

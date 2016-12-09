@@ -45,7 +45,7 @@ const std::string Note::CHECK_USER_TMPFS = "ls -l /run/user/$(id -u)";
 
 const std::string Note::GET_UID = "id -u";
 
-const std::string Note::PASSWORDS_FILE = ".x768bbbgi";
+const std::string Note::PASSWORD_FILE = ".x768bbbgi";
 
 bool Note::s_profile_encrypted = false;
 
@@ -210,6 +210,13 @@ string Note::get_gpg_pass(T prompt) {
     return password;
 }
 
+void Note::get_and_save_passwd_to_file() {
+    string passwd = get_gpg_pass("Enter password: ");
+    ofstream outfile(PASSWORD_FILE.c_str());
+    outfile << passwd << endl;
+    outfile.close();
+}
+
 // Trying to learn templates - ignore
 template<>
 void Note::learn_templates<int>(int x) {
@@ -356,9 +363,12 @@ string Note::get_tmp_message(string note_message) {
         note_message = ADD_NOTE_MSG; 
 
     // Create a tempfile path
+    string tmp_file = s_temp_dir + "/notetaker_%%%%_%%%%.txt";
     boost::filesystem::path temp = boost::filesystem::unique_path(
             "/tmp/notetaker_%%%%_%%%%.txt");
-    string tmp_file = temp.native();
+    tmp_file = temp.native();
+    BOOST_LOG_TRIVIAL(debug) << "get_tmp_message: tmp_file: " 
+        << tmp_file;
 
     // Open and write to temporary file
     create_tmp_file(tmp_file, note_message);
@@ -504,6 +514,8 @@ void Note::load_notes() {
         ptree pt;
         if (check_if_profile_encrypted()) {
             // See this - http://stackoverflow.com/a/21537818
+            // ask for password here and save it to password file
+            get_and_save_passwd_to_file();
             string decrypted_profile = decrypt_profile();
             stringstream ss;
             ss << decrypted_profile; 
@@ -566,7 +578,7 @@ void Note::save_notes() {
  * Requires systemd and the /run/user/$(id -u) tmpfs to be present 
  *
  * Doing it this way as don't want to write decrypted profile to disk
- * Todo 1: If no /run/user/$(id -u) fallback to using /tmp/
+ * Todo 1: If no /run/user/$(id -u) fallback to using /tmp/ (insecure)
  * Todo 2: maybe use GPGME library
  */
 void Note::write_encrypted_profile(string profile) {
