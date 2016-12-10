@@ -168,7 +168,13 @@ void Note::process_args(int argc, char **argv) {
     do_cleanup();
 }
 
-// Create temp dir and set s_temp_dir
+/** 
+ * Create temp dir and set s_temp_dir
+ *
+ * If /run/user/$UID does not exist use /tmp/ for temporary files (which may
+ * be insecure in multi-user system when dealing with encrypted profiles).
+ * See - https://www.freedesktop.org/software/systemd/man/pam_systemd.html
+ */
 void Note::create_temp_dir() {
     using boost::format;
     int exit_code;
@@ -177,6 +183,8 @@ void Note::create_temp_dir() {
     run_cmd(CHECK_USER_TMPFS, exit_code, output);
 
     if (exit_code != 0) {
+        cout << "Warning: Running app in insecure mode. " << 
+            "Dot not rely upon for strong encryption!" << endl;
         tmp_dir = "/tmp/NoteTaker/";
         create_app_tmp_dir(tmp_dir);
     }
