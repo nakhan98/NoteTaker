@@ -36,10 +36,10 @@ const float Note::VERSION = 0.1;
 
 const string Note::GPG_HEADER = "-----BEGIN PGP MESSAGE-----";
 
-const string Note::GPG_DECRYPTION_CMD = "gpg --output - ";
+const string Note::GPG_DECRYPTION_CMD = "gpg --output - --passphrase-file %s %s";
 
 const string Note::GPG_ENCRYPTION_CMD = "gpg --output %s --yes --symmetric "
-    "--armour %s";
+    "--armour --passphrase-file %s %s";
 
 const std::string Note::CHECK_USER_TMPFS = "ls -l /run/user/$(id -u)";
 
@@ -95,7 +95,7 @@ void Note::process_args(int argc, char **argv) {
         ("edit,e", po::value< vector<int> >(), "Edit a note")
         ("show,s", po::value< vector<int> >(), "Show a note")
         ("profile,p", po::value< vector<string> >(), "Specify a profile")
-        ("encrypt,e", "Encrypt profile")
+        ("encrypt", "Encrypt profile")
         ("debug", "Turn debugging on")
     ;
     po::variables_map args;
@@ -163,6 +163,9 @@ void Note::process_args(int argc, char **argv) {
         BOOST_LOG_TRIVIAL(debug) << "process_args: listing notes";
         print_all_notes();
     }
+
+    // Cleanup
+    do_cleanup();
 }
 
 // Create temp dir and set s_temp_dir
@@ -174,7 +177,7 @@ void Note::create_temp_dir() {
     run_cmd(CHECK_USER_TMPFS, exit_code, output);
 
     if (exit_code != 0) {
-        tmp_dir = "/tmp";
+        tmp_dir = "/tmp/NoteTaker/";
         create_app_tmp_dir(tmp_dir);
     }
     else {
@@ -182,7 +185,7 @@ void Note::create_temp_dir() {
         string uid = get_uid();
 
         // Path for tempfile 
-        tmp_dir = "/run/user/" + uid;
+        tmp_dir = "/run/user/" + uid + "/NoteTaker/";
         create_app_tmp_dir(tmp_dir);
     }
     BOOST_LOG_TRIVIAL(debug) << "create_temp_dir: setting s_temp_dir to " <<
@@ -210,11 +213,29 @@ string Note::get_gpg_pass(T prompt) {
     return password;
 }
 
-void Note::get_and_save_passwd_to_file() {
-    string passwd = get_gpg_pass("Enter password: ");
-    ofstream outfile(PASSWORD_FILE.c_str());
+string Note::get_passwd_file_path() {
+    return s_temp_dir + "/" + PASSWORD_FILE;
+}
+
+void Note::get_and_save_passwd_to_file(string prompt) {
+    string passwd = get_gpg_pass(prompt);
+    string passwd_file_path = get_passwd_file_path();
+    ofstream outfile(passwd_file_path.c_str());
     outfile << passwd << endl;
     outfile.close();
+}
+
+void Note::do_cleanup() {
+    BOOST_LOG_TRIVIAL(debug) << "do_cleanup:...";
+    delete_passwd_file();
+}
+
+void Note::delete_passwd_file() {
+    string passwd_file = s_temp_dir + "/" + PASSWORD_FILE;
+    if (boost::filesystem::exists(passwd_file)) {
+        BOOST_LOG_TRIVIAL(debug) << "delete_passwd_file: Deleting PASSWORD_FILE: " << passwd_file;
+        remove(passwd_file.c_str());
+    }
 }
 
 // Trying to learn templates - ignore
@@ -232,10 +253,11 @@ void Note::learn_templates<const char *>(const char* x) {
 }
 
 void Note::encrypt_profile() {
-    // Todo: check if encrypted
-    string pass = get_gpg_pass("Enter password: ");
-    s_profile_encrypted = true;
+    BOOST_LOG_TRIVIAL(debug) << "encrypt_profile: loading notes";
     load_notes();
+    BOOST_LOG_TRIVIAL(debug) << "encrypt_profile: getting new password";
+    get_and_save_passwd_to_file("Enter new password: ");
+    BOOST_LOG_TRIVIAL(debug) << "encrypt_profile: saving notes";
     save_notes();
 }
 
@@ -463,16 +485,20 @@ bool Note::check_if_profile_encrypted() {
 // Attempt to decrypt profile (throw runtime error if return code of gpg command is not
 // 0)
 string Note::decrypt_profile() {
-    string command = GPG_DECRYPTION_CMD + NOTES_FILE;
+    using boost::format;
+    string passwd_file_path = get_passwd_file_path();
+    string gpg_decrypt_cmd = boost::str(format(GPG_DECRYPTION_CMD) %
+            passwd_file_path % NOTES_FILE);
     int exit_code;
     string output;
-    run_cmd(command, exit_code, output);
+    run_cmd(gpg_decrypt_cmd, exit_code, output);
     BOOST_LOG_TRIVIAL(debug) << "decrypt_profile: Attempting to decrypt profile - " <<
         NOTES_FILE;
 
     if (exit_code != 0) {
         string error_message = "decrypt_profile failed as cmd returned "
             "non-zero value: " + boost::lexical_cast<string>(exit_code);
+        do_cleanup();
         throw std::runtime_error(error_message);
     }
 
@@ -489,6 +515,7 @@ void Note::run_cmd(string cmd, int& exit_code, string& output) {
     char buffer[max_buffer];
     exit_code = 1;
     //cmd.append(" 2>&1"); Don't need stderr redirection for now
+    cmd.append(" 2>/dev/null");
 
     BOOST_LOG_TRIVIAL(debug) << "run_cmd: preparing to run the following " <<
         "command - " << cmd;
@@ -515,6 +542,7 @@ void Note::load_notes() {
         if (check_if_profile_encrypted()) {
             // See this - http://stackoverflow.com/a/21537818
             // ask for password here and save it to password file
+            cout << "Profile appears to be encrypted!" << endl;
             get_and_save_passwd_to_file();
             string decrypted_profile = decrypt_profile();
             stringstream ss;
@@ -586,7 +614,7 @@ void Note::write_encrypted_profile(string profile) {
     int exit_code;
     string output;
     string tmp_file;
-    tmp_file = s_temp_dir + "/NoteTaker/notetaker_%%%%_%%%%.profile";
+    tmp_file = s_temp_dir + "/notetaker_%%%%_%%%%.profile";
 
     // create tmp file path
     boost::filesystem::path temp = boost::filesystem::unique_path(tmp_file);
@@ -597,9 +625,8 @@ void Note::write_encrypted_profile(string profile) {
 
     // construct cmd to encrypt profile 
     string gpg_encrypt_cmd = boost::str(format(GPG_ENCRYPTION_CMD) %
-            NOTES_FILE % tmp_file);
+            NOTES_FILE % get_passwd_file_path() % tmp_file);
     
-    cout << "Please enter password to re-encrypt profile" << endl;
     run_cmd(gpg_encrypt_cmd, exit_code, output);
 
     if (exit_code != 0) {
@@ -620,8 +647,8 @@ string Note::get_uid() {
     return uid;
 }
 
-void Note::create_app_tmp_dir(string tmp_path) {
-    string temp_dir = tmp_path + "/NoteTaker";
+void Note::create_app_tmp_dir(string temp_dir) {
+    //string temp_dir = tmp_path + "/NoteTaker"; # delete
     boost::filesystem::path path(temp_dir);
     if (boost::filesystem::create_directory(path)) {
         BOOST_LOG_TRIVIAL(debug) << "create_user_tmpfs_dir: Created temporary "

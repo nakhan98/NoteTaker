@@ -86,7 +86,8 @@ class Note {
         static bool check_if_profile_encrypted();
         static std::string decrypt_profile();
         static void write_encrypted_profile(std::string profile);
-        static void get_and_save_passwd_to_file();
+        static void get_and_save_passwd_to_file(std::string prompt="Enter password: ");
+        static std::string get_passwd_file_path();
         template <class T> static std::string get_gpg_pass(T prompt);
 
         // Learning templates - ignore
@@ -108,6 +109,12 @@ class Note {
 
         // Create temp dir and set s_temp_dir
         static void create_temp_dir();
+
+        // Cleanup method
+        static void do_cleanup();
+
+        // Delete passwords file
+        static void delete_passwd_file();
 
 
     private:
