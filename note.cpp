@@ -1,6 +1,7 @@
 #include <iostream>
 #include <ctime>
 #include <vector>
+#include <algorithm> 
 #include <stdio.h>
 #include <cstdlib>
 #include <stdlib.h>
@@ -93,6 +94,7 @@ void Note::process_args(int argc, char **argv) {
         ("list,l", "List all notes")
         ("add,a", "Add a note")
         ("edit,e", po::value< vector<int> >(), "Edit a note")
+        ("delete,d", po::value< vector<int> >(),"Delete a note")
         ("show,s", po::value< vector<int> >(), "Show a note")
         ("profile,p", po::value< vector<string> >(), "Specify a profile")
         ("encrypt", "Encrypt profile")
@@ -145,6 +147,12 @@ void Note::process_args(int argc, char **argv) {
         vector<int> input = args["edit"].as< vector<int> >();
         edit_note(input[0]);
     }
+    else if (args.count("delete")) {
+        load_notes();
+        vector<int> input = args["delete"].as< vector<int> >();
+        delete_note(input[0]);
+        save_notes();
+    }
     else if (args.count("show")) {
         load_notes();
         vector<int> input = args["show"].as< vector<int> >();
@@ -157,9 +165,9 @@ void Note::process_args(int argc, char **argv) {
     }
 
     // if no relevant args, list notes
-    if (!(args.count("add") || args.count("edit") || args.count("show") ||
-                args.count("list") || args.count("help") ||
-                args.count("version") || args.count("encrypt"))) {
+    if (!(args.count("add") || args.count("edit") || args.count("delete") ||
+                args.count("show") || args.count("list") || args.count("help")
+                || args.count("version") || args.count("encrypt"))) {
         BOOST_LOG_TRIVIAL(debug) << "process_args: listing notes";
         print_all_notes();
     }
@@ -168,7 +176,7 @@ void Note::process_args(int argc, char **argv) {
     do_cleanup();
 }
 
-/** 
+/**
  * Create temp dir and set s_temp_dir
  *
  * If /run/user/$UID does not exist use /tmp/ for temporary files (which may
@@ -331,6 +339,31 @@ void Note::edit_note(int id) {
     save_notes();
 }
 
+// Delete a note
+void Note::delete_note(int id) {
+    bool found_note = false;
+    int index = 0;
+    for (vector<Note *>::iterator note_p = NoteList.begin();
+            note_p != NoteList.end(); ++note_p) {
+        if ((*note_p)->id == id) {
+            BOOST_LOG_TRIVIAL(debug) << "delete_note: Found note with id: " << id;
+            found_note = true;
+            break;
+        }
+        index++;
+    }
+
+    if (found_note){
+        BOOST_LOG_TRIVIAL(debug) << "delete_note: Deleting note with id: " <<
+            id;
+        NoteList.erase(NoteList.begin()+index);
+    }
+    else {
+        BOOST_LOG_TRIVIAL(debug) << "delete_note: Did not find note with id: "
+            << id;
+    }
+}
+
 // Retrieve a Note
 // Throw runtime error if note is not found
 Note*  Note::get_note(int id) {
@@ -458,16 +491,63 @@ void Note::destroy_all_notes() {
         delete *note_p;
 }
 
-//get an id of message
+// Helper functions for sorting
+template<>
+bool Note::sorter<int>(int x, int y) {
+    return x < y;
+}
+
+template<>
+bool Note::sorter<string>(string x, string y) {
+    int comparison = x.compare(y);
+    if (comparison < 0)
+        return true;
+    else
+        return false;
+}
+
+// Comparator function to help sort NoteList
+// See - http://stackoverflow.com/a/4892701
+bool Note::sort_notes_by_id(Note* n1, Note* n2) {
+    return sorter(n1->id, n2->id);
+}
+
+bool Note::sort_notes_by_title(Note* n1, Note* n2) {
+    return sorter(n1->title, n2->title);
+}
+
+bool Note::sort_notes_by_date(Note* n1, Note* n2) {
+    return sorter(n1->date, n2->date);
+}
+
+// Get an id of message (get first free id)
+// 
 int Note::get_id() {
-    int id;
-    int size_of_note_list = NoteList.size();
-    if (!size_of_note_list)
-        id = 1;
-    else {
-        id  = NoteList.back()->id;
+    // Create a copy of NoteList for sorting
+    vector<Note *> sorted_notes;
+    for (size_t i=0; i<NoteList.size(); i++)
+        sorted_notes.push_back(NoteList[i]);
+    
+    // sort sorted_notes
+    sort(sorted_notes.begin(), sorted_notes.end(), sort_notes_by_id);
+
+    // Find first empty id
+    int id = 1;
+    int size_of_note_list = sorted_notes.size();
+    for (vector<Note *>::iterator note_p = sorted_notes.begin();
+            note_p != sorted_notes.end(); ++note_p) {
+        if ((*note_p)->id != id) {
+            BOOST_LOG_TRIVIAL(debug) << "get_id: Found empty id: " <<
+                id;
+            break;
+        }
         id++;
     }
+
+    //Check if we iterated through all of vector without finding empty id
+    if (id > size_of_note_list)
+        BOOST_LOG_TRIVIAL(debug) << "get_id: Issuing new id: " << id;
+
     return id;
 }
 
@@ -718,8 +798,8 @@ void Note::print_all_notes() {
         format title = format(create_note_row(title_width)) % "ID" % "Title" % "Date";
         cout << title << endl;
         cout << string(title_width + 5 + 20, '-') << endl;
-        for (vector<Note *>::iterator note_p = Note::NoteList.begin();
-                note_p != Note::NoteList.end(); ++note_p) {
+        for (vector<Note *>::iterator note_p = NoteList.begin();
+                note_p != NoteList.end(); ++note_p) {
             // We want the first line of the message
             // This may not be efficient - https://studiofreya.com/cpp/boost/a-few-boostformat-examples/
             //format title_message = format("%-5s%-60s") % (*note_p)->id % (*note_p)->title;

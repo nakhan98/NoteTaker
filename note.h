@@ -116,6 +116,17 @@ class Note {
         // Delete passwords file
         static void delete_passwd_file();
 
+        // Delete a note
+        static void delete_note(int id);
+
+        // Comparator functions for helping sort NoteList
+        static bool sort_notes_by_id(Note* n1, Note* n2);
+        static bool sort_notes_by_title(Note* n1, Note* n2);
+        static bool sort_notes_by_date(Note* n1, Note* n2);
+
+        // Helper function to sort
+        template <class T> static bool sorter(T x, T y);
+
 
     private:
         // Generic info 
